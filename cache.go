@@ -133,7 +133,7 @@ func (c *Cache[K, V]) Snapshot() []V {
 
 // indexer is the internal interface for all index types.
 type indexer[V any] interface {
-	name() string
+	indexName() string
 	add(*V)
 	clone() indexer[V]
 	lookup(any) []*V
@@ -145,7 +145,7 @@ type simpleIndex[V any, I comparable] struct {
 	entries map[I][]*V
 }
 
-func (idx *simpleIndex[V, I]) name() string { return idx.name }
+func (idx *simpleIndex[V, I]) indexName() string { return idx.name }
 
 func (idx *simpleIndex[V, I]) add(v *V) {
 	key := idx.extract(v)

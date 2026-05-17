@@ -65,6 +65,7 @@ func (ds *DataSource) ScanAll(ctx context.Context, table string, dest any) error
 	var fallbackErrs []error
 	for i, fb := range ds.fallbacks {
 		if err := fb.ScanAll(ctx, table, dest); err == nil {
+			ds.errCount = 0
 			return nil
 		} else {
 			fallbackErrs = append(fallbackErrs, fmt.Errorf("fallback[%d](%s): %w", i, fb.Name(), err))

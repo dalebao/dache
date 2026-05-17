@@ -56,6 +56,21 @@ func (v *View) Add(adder TableAdder, query string) {
 	})
 }
 
+// Get returns the TableAdder for the named table.
+// The caller should type-assert to *Table[K, V]:
+//
+//	tbl, ok := view.Get("users").(*localcache.Table[int, User])
+func (v *View) Get(name string) (TableAdder, bool) {
+	v.mu.Lock()
+	defer v.mu.Unlock()
+	for _, tbl := range v.tables {
+		if tbl.name == name {
+			return tbl.adder, true
+		}
+	}
+	return nil, false
+}
+
 // SetDataSource configures the DataSource used during refresh.
 func (v *View) SetDataSource(ds *DataSource) {
 	v.mu.Lock()
@@ -110,9 +125,25 @@ func (v *View) Epoch() time.Time { return v.epoch.Load().(time.Time) }
 // Name returns the view name.
 func (v *View) Name() string { return v.name }
 
-// Query returns a ViewQuery for the named table.
-// Returns nil if the table is not registered in this View.
-func (v *View) Query[K comparable, V any](name string) *ViewQuery[K, V] {
+// TableNames returns all registered table names.
+func (v *View) TableNames() []string {
+	v.mu.Lock()
+	defer v.mu.Unlock()
+	names := make([]string, len(v.tables))
+	for i, tbl := range v.tables {
+		names[i] = tbl.name
+	}
+	return names
+}
+
+// QueryView returns a version-stamped query for a table in a View.
+// This is a standalone function because Go does not allow type parameters
+// on methods (as of Go 1.22).
+//
+//	results, stamp, err := localcache.QueryView[int, User](view, "users").
+//	    Where("age", OpGTE, 18).
+//	    Execute(ctx)
+func QueryView[K comparable, V any](v *View, name string) *ViewQuery[K, V] {
 	v.mu.Lock()
 	defer v.mu.Unlock()
 

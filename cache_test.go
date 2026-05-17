@@ -102,9 +102,9 @@ func TestQueryNoIndices(t *testing.T) {
 
 func TestQueryWithIndex(t *testing.T) {
 	ctx := context.Background()
-	c := localcache.New(
+	c := localcache.New[int, User](
 		localcache.WithKey(intKey),
-		localcache.WithIndex("Age", func(u User) int { return u.Age }),
+		localcache.WithIndex[int, User, int]("Age", func(u User) int { return u.Age }),
 	)
 	c.Load(ctx, []User{
 		{ID: 1, Name: "Alice", Age: 30},
@@ -187,9 +187,9 @@ func TestLimitOffset(t *testing.T) {
 
 func TestQueryChaining(t *testing.T) {
 	ctx := context.Background()
-	c := localcache.New(
+	c := localcache.New[int, User](
 		localcache.WithKey(intKey),
-		localcache.WithIndex("Age", func(u User) int { return u.Age }),
+		localcache.WithIndex[int, User, int]("Age", func(u User) int { return u.Age }),
 	)
 	c.Load(ctx, []User{
 		{ID: 1, Name: "Alice", Age: 30},
@@ -217,9 +217,9 @@ func TestQueryChaining(t *testing.T) {
 
 func TestConcurrency(t *testing.T) {
 	ctx := context.Background()
-	c := localcache.New(
+	c := localcache.New[int, User](
 		localcache.WithKey(intKey),
-		localcache.WithIndex("Age", func(u User) int { return u.Age }),
+		localcache.WithIndex[int, User, int]("Age", func(u User) int { return u.Age }),
 	)
 	c.Load(ctx, []User{{ID: 1, Name: "Alice", Age: 30}})
 
@@ -354,9 +354,9 @@ func TestFieldGetter(t *testing.T) {
 		_fields map[string]any
 	}
 
-	c := localcache.New(
+	c := localcache.New[int, customWithGetter](
 		localcache.WithKey(func(v customWithGetter) int { return v.ID }),
-		localcache.WithIndex("Age", func(v customWithGetter) int { return v.Age }),
+		localcache.WithIndex[int, customWithGetter, int]("Age", func(v customWithGetter) int { return v.Age }),
 	)
 
 	c.Load(ctx, []customWithGetter{

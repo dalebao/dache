@@ -94,28 +94,27 @@ func NewRefreshGroup(interval time.Duration) *RefreshGroup {
 // The loop stops when ctx is cancelled.
 func (rg *RefreshGroup) Start(ctx context.Context, fn func(context.Context) error) {
 	rg.once.Do(func() {
-		ticker := time.NewTicker(rg.interval)
-		defer ticker.Stop()
-
-		// Do an immediate first refresh
-		if err := rg.ForceRefresh(ctx, fn); err != nil {
-			// Log or handle; first failure is acceptable
-		}
-
-		for {
-			select {
-			case <-ticker.C:
-				if err := rg.Refresh(ctx, fn); err != nil {
-					// Log error; the group keeps trying on next tick
-					continue
-				}
-			case <-ctx.Done():
-				return
-			case <-rg.stopCh:
-				return
-			}
-		}
+		go rg.loop(ctx, fn)
 	})
+}
+
+func (rg *RefreshGroup) loop(ctx context.Context, fn func(context.Context) error) {
+	ticker := time.NewTicker(rg.interval)
+	defer ticker.Stop()
+
+	// Do an immediate first refresh
+	_ = rg.ForceRefresh(ctx, fn)
+
+	for {
+		select {
+		case <-ticker.C:
+			_ = rg.Refresh(ctx, fn)
+		case <-ctx.Done():
+			return
+		case <-rg.stopCh:
+			return
+		}
+	}
 }
 
 // Stop stops the background refresh loop.
