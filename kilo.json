@@ -1,0 +1,10 @@
+{
+  "project": {
+    "name": "harness",
+    "description": "AI 上下文工程 harness — 仓库即上下文，渐进式披露文档体系 + 执行计划"
+  },
+  "agent": {
+    "entry": "AGENTS.md",
+    "recursive": true
+  }
+}
