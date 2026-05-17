@@ -8,31 +8,29 @@ import (
 	"time"
 )
 
-// View is a named, versioned cache layer that ties multiple caches
-// to a unified data source with coordinated refresh timing.
+// View is a named, versioned cache layer that ties multiple Table's
+// to a unified DataSource with coordinated refresh timing.
 //
 // All tables in a View share a single refresh epoch and version counter,
-// ensuring cross-table temporal consistency.
+// ensuring cross-table temporal consistency. When any table fails to load,
+// no tables are updated (all-or-nothing semantics).
 type View struct {
 	name    string
 	tables  []*viewTable
 	ds      *DataSource
 	group   *Group
 	version atomic.Int64
-	epoch   atomic.Value // time.Time, last successful sync time
+	epoch   atomic.Value // time.Time
 	mu      sync.Mutex
-	stopped atomic.Bool
 }
 
 type viewTable struct {
-	name   string
-	cache  any           // *Cache[K, V], accessed via scanFn
-	query  string        // SQL or key for the table
-	scanFn func(ctx context.Context, q string, dest any) error
+	name  string
+	adder TableAdder
+	query string
 }
 
 // NewView creates a new View with the given name and refresh interval.
-// The DataSource should be configured before calling Register.
 func NewView(name string, interval time.Duration) *View {
 	v := &View{
 		name:  name,
@@ -42,39 +40,32 @@ func NewView(name string, interval time.Duration) *View {
 	return v
 }
 
-// Register adds a cache to the View. When the View refreshes, it calls
-// scanFn to load data. scanFn reads from the View's DataSource.
-//
-// Example:
+// Add registers a Table with a query. When the View refreshes, it calls
+// Table.LoadFrom(ctx, query, scan) where scan uses the View's DataSource.
 //
 //	view := localcache.NewView("order_dashboard", 5*time.Minute)
-//	view.Register("users", userCache, "SELECT * FROM users", nil)
 //	view.SetDataSource(mysqlDS)
-func (v *View) Register(name string, cache any, query string, scanFn func(ctx context.Context, q string, dest any) error) {
+//	view.Add(users, "SELECT id, name, age FROM users")
+func (v *View) Add(adder TableAdder, query string) {
 	v.mu.Lock()
 	defer v.mu.Unlock()
-
-	if scanFn == nil {
-		scanFn = v.defaultScan
-	}
-
 	v.tables = append(v.tables, &viewTable{
-		name:   name,
-		cache:  cache,
-		query:  query,
-		scanFn: scanFn,
+		name:  adder.TableName(),
+		adder: adder,
+		query: query,
 	})
 }
 
-// SetDataSource sets or replaces the DataSource for this View.
+// SetDataSource configures the DataSource used during refresh.
 func (v *View) SetDataSource(ds *DataSource) {
 	v.mu.Lock()
 	defer v.mu.Unlock()
 	v.ds = ds
 }
 
-// Refresh triggers a coordinated refresh of all tables.
+// Refresh triggers an immediate coordinated refresh of all tables.
 // Data is loaded through the DataSource with automatic fallback.
+// All-or-nothing: if any table fails, no tables are updated.
 func (v *View) Refresh(ctx context.Context) error {
 	return v.group.ForceRefresh(ctx, func(ctx context.Context) error {
 		return v.loadAll(ctx)
@@ -88,8 +79,7 @@ func (v *View) TryRefresh(ctx context.Context) error {
 	})
 }
 
-// loadAll loads data for all tables atomically.
-// If any table fails, no tables are updated.
+// loadAll refreshes all tables atomically.
 func (v *View) loadAll(ctx context.Context) error {
 	v.mu.Lock()
 	ds := v.ds
@@ -100,16 +90,10 @@ func (v *View) loadAll(ctx context.Context) error {
 		return fmt.Errorf("view %s: no DataSource configured", v.name)
 	}
 
-	snapshots := make([]snapshot, len(tables))
-	for i, tbl := range tables {
-		if err := tbl.scanFn(ctx, tbl.query, &snapshots[i].data); err != nil {
+	for _, tbl := range tables {
+		if err := tbl.adder.LoadFrom(ctx, tbl.query, ds.ScanAll); err != nil {
 			return fmt.Errorf("view %s: table %s: %w", v.name, tbl.name, err)
 		}
-		snapshots[i].table = tbl
-	}
-
-	for _, snap := range snapshots {
-		_ = snap.table.cache.(interface{ Load(context.Context, []any) error }).Load(ctx, snap.data)
 	}
 
 	v.version.Add(1)
@@ -117,23 +101,7 @@ func (v *View) loadAll(ctx context.Context) error {
 	return nil
 }
 
-type snapshot struct {
-	table *viewTable
-	data  []any
-}
-
-func (v *View) defaultScan(ctx context.Context, query string, dest any) error {
-	v.mu.Lock()
-	ds := v.ds
-	v.mu.Unlock()
-	if ds == nil {
-		return fmt.Errorf("view %s: no DataSource", v.name)
-	}
-	return ds.ScanAll(ctx, query, dest)
-}
-
-// Version returns the current version counter.
-// Version increments on each successful refresh.
+// Version returns the current version counter (increments on each successful refresh).
 func (v *View) Version() int64 { return v.version.Load() }
 
 // Epoch returns the last successful refresh time.
@@ -141,3 +109,27 @@ func (v *View) Epoch() time.Time { return v.epoch.Load().(time.Time) }
 
 // Name returns the view name.
 func (v *View) Name() string { return v.name }
+
+// Query returns a ViewQuery for the named table.
+// Returns nil if the table is not registered in this View.
+func (v *View) Query[K comparable, V any](name string) *ViewQuery[K, V] {
+	v.mu.Lock()
+	defer v.mu.Unlock()
+
+	for _, tbl := range v.tables {
+		if tbl.name == name {
+			if cache, ok := tbl.adder.(*Table[K, V]); ok {
+				return &ViewQuery[K, V]{
+					Query: cache.Cache.Query(),
+					stampFunc: func() VersionStamp {
+						return VersionStamp{
+							ViewVersion: v.Version(),
+							Epoch:       v.Epoch(),
+						}
+					},
+				}
+			}
+		}
+	}
+	return nil
+}
