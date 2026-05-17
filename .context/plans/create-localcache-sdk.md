@@ -58,18 +58,34 @@
 **验收**：
 - 多个 Cache 注册到同一 Group 后，Load 一次更新全部 Cache
 
-### Step 5：测试 + 示例
+### Step 5：类型修复 + 推送
 
 **操作**：
-- 为每个组件写单元测试（table-driven）
-- 写 example_test.go 或 example 目录
-- 跑全量测试
+- 修复 view.go 中使用 `[]any` 断言 `Cache.Load` 的类型问题，改用 `TableAdder` 接口
+- 调整模块路径为 `github.com/dalebao/dache`
+- 推送到 GitHub
 
 **验收**：
-- `go test -count=1 ./...` 全部 Pass
+- `git push` → 成功推送到 `github.com/dalebao/dache`
+
+## 进度日志
+
+| 日期 | 步骤 | 状态 | 决策/理由 |
+|------|------|------|-----------|
+| 2026-05-17 | Step 1 | 已完成 | 单包结构，root 即 package localcache |
+| 2026-05-17 | Step 2 | 已完成 | indexer 接口+simpleIndex 实现，泛型约束使用 comparable |
+| 2026-05-17 | Step 3 | 已完成 | clone-on-write 链式调用，反射 field 访问 + fieldGetter 优化接口 |
+| 2026-05-17 | Step 4 | 已完成 | Group 用 interval 控制刷新频率；RefreshGroup 提供 Start/Stop 后台循环 |
+| 2026-05-17 | Step 5 | 已完成 | 发现泛型类型无法存入异构集合，引入 TableAdder 接口解耦 |
 
 ## 知识沉淀
 
-计划完成后更新：
-- `.context/topics/architecture-principles.md` — 验证 Golang 版原则在本项目的适用性
-- `.context/runbooks/` — 记录 Go 项目特有的构建/测试命令
+### 写入 L3 runbook 的稳定事实
+
+- **Go 泛型接口模式**：当多个 `Cache[K1,V1]`、`Cache[K2,V2]` 需要被统一管理时，不能直接存储为 `[]*Cache[K,V]`。解决方案：定义非泛型接口（如 `TableAdder`）暴露所需能力，具体泛型类型实现该接口。在 View 端存储 `[]TableAdder`，类型安全由调用者在 View.Query 中做断言保障。
+- **Connector + DataSource 抽象**：把外部数据源接入抽象为 `Connector` 接口（ScanAll/Ping/Close），`DataSource` 包装主备回退链。这个模式可推广到任何需要多数据源 failback 的场景。
+- **View + Group 一致性模型**：使用 Group 做间隔控制，View 做版本戳 + epoch 统一刷新。保证跨表查询的数据来自同一时间点。Table/View/Group 三者关系见 `design/view-architecture.md`（如后续补充）。
+
+### 待解决的问题
+
+- Go 本地编译环境尚未就绪（brew install go 超时），需要在 GitHub Actions 上验证编译和测试

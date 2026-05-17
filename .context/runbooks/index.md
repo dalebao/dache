@@ -4,7 +4,8 @@
 
 ## 操作手册列表
 
-（新增时在此登记）
+- `pre-commit-hooks.md` — Hook 三层防线（Go 版本）
+- `go-workflow.md` — Go 项目构建/测试/发布命令
 
 ## 事实沉淀流程
 
