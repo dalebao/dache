@@ -167,7 +167,7 @@ func (q *Query[K, V]) applyFilters(candidates []*V) []*V {
 
 	indexedUsed := make(map[string]bool)
 	for _, w := range q.wheres {
-		if w.op == OpEQ {
+		if w.op == OpEQ && w.value != nil {
 			if _, ok := q.cache.indices[w.field]; ok {
 				indexedUsed[w.field] = true
 			}
@@ -178,7 +178,7 @@ func (q *Query[K, V]) applyFilters(candidates []*V) []*V {
 	for _, v := range candidates {
 		match := true
 		for _, w := range q.wheres {
-			if indexedUsed[w.field] && w.op == OpEQ {
+			if indexedUsed[w.field] && w.op == OpEQ && w.value != nil {
 				continue
 			}
 			if !q.matches(w, *v) {

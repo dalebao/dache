@@ -40,6 +40,37 @@
 - 所有文件路径使用仓库相对路径，如 `src/main.rs` 而非 `/absolute/path/to/src/main.rs`
 - 命令必须是可复现的完整命令
 
+## 与 ADR 的关系
+
+ADR（Architecture Decision Record，Michael Nygard 提出）是与 ExecPlan 互补的文档形式：
+
+| 维度 | ExecPlan | ADR |
+|------|----------|-----|
+| 关注点 | 做什么 + 怎么验证 | 为什么这么决策 |
+| 生命周期 | 从开始到验收 | 永久存档 |
+| 更新频率 | 高频（边做边更新） | 低频（只在决策时写） |
+| 核心结构 | Background + 验收 + 蓝图 + 日志 | Context + Decision + Consequences |
+
+推荐做法：重大架构决策（引入新框架、改变数据流、变更模块边界）应写 ADR 并存于 `.context/runbooks/adr/`。ExecPlan 中的 Step 决策理由可引用 ADR。
+
+ADR 基本格式（1-2 页）：
+
+```
+# ADR-N：标题
+
+## Context
+（描述当前问题、技术约束、备选方案）
+
+## Decision
+（用了什么方案，为什么）
+
+## Status
+[Proposed / Accepted / Deprecated]
+
+## Consequences
+（正面和负面结果）
+```
+
 ## 模板
 
 见 `.context/plans/plan-template.md`

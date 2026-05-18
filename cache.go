@@ -38,9 +38,6 @@ func WithKey[K comparable, V any](fn func(V) K) Option[K, V] {
 // The fn extracts the indexed value from a record.
 func WithIndex[K comparable, V any, I comparable](name string, fn func(V) I) Option[K, V] {
 	return optionFunc[K, V](func(c *Cache[K, V]) {
-		if c.indices == nil {
-			c.indices = make(map[string]indexer[V])
-		}
 		c.indices[name] = &simpleIndex[V, I]{
 			name:    name,
 			extract: func(v *V) I { return fn(*v) },
@@ -133,7 +130,6 @@ func (c *Cache[K, V]) Snapshot() []V {
 
 // indexer is the internal interface for all index types.
 type indexer[V any] interface {
-	indexName() string
 	add(*V)
 	clone() indexer[V]
 	lookup(any) []*V
@@ -144,8 +140,6 @@ type simpleIndex[V any, I comparable] struct {
 	extract func(*V) I
 	entries map[I][]*V
 }
-
-func (idx *simpleIndex[V, I]) indexName() string { return idx.name }
 
 func (idx *simpleIndex[V, I]) add(v *V) {
 	key := idx.extract(v)

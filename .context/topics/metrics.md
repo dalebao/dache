@@ -4,6 +4,19 @@
 
 Harness 的收益难度量，因为它的价值经常是"坏事没有发生"。因此度量不追求单一 ROI，而是沿变更生命周期分层观测。
 
+## 行业参照：DORA Four Keys
+
+DORA（DevOps Research & Assessment）定义的四个关键指标，作为 Harness 效果的行业基线参照：
+
+| 指标 | 定义 | 在 Harness 上下文中的对应 |
+|------|------|--------------------------|
+| 部署频率 (Deployment Frequency) | 代码多久部署一次 | 间接：Hook 拦截质量 → 减少 break → 部署更自信 |
+| 变更前置时间 (Lead Time for Changes) | 从提交到上线的时间 | ExecPlan 从开始到验收通过的时间 |
+| 变更失败率 (Change Failure Rate) | 部署后出现故障的比例 | 可预防失败率（CI 捕获但本地未拦截） |
+| 故障恢复时间 (MTTR) | 从故障到恢复的时间 | Agent 自愈率 + 修复循环次数 |
+
+Harness 的核心主张是：通过约束换自治，提升 DORA 指标的**稳定性和可预测性**。
+
 ## 分层指标体系
 
 ### 本地（Local）— 开发/实验时的反馈质量
