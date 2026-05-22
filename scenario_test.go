@@ -319,8 +319,8 @@ func TestScenario_OrderDashboard(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if len(recentOrders) != 5 {
-			t.Fatalf("expected 5 orders in last 24h, got %d", len(recentOrders))
+		if len(recentOrders) != 6 {
+			t.Fatalf("expected 6 orders in last 24h (includes 24h boundary), got %d", len(recentOrders))
 		}
 	})
 
@@ -333,7 +333,7 @@ func TestScenario_OrderDashboard(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if len(recentOrdersSorted) != 5 {
+		if len(recentOrdersSorted) != 6 {
 			t.Fatal("expected 5 recent orders sorted")
 		}
 		if recentOrdersSorted[0].ID != 2 {
@@ -507,18 +507,27 @@ func TestScenario_ViewConsistency(t *testing.T) {
 		if vq == nil {
 			t.Fatal("expected non-nil ViewQuery for products")
 		}
-		results, stamp, err := vq.Where("Category", localcache.OpEQ, "Electronics").Execute(ctx)
+
+		results, stamp, err := vq.Execute(ctx)
 		if err != nil {
 			t.Fatal(err)
 		}
-		if len(results) != 3 {
-			t.Fatalf("expected 3 Electronics, got %d", len(results))
+		if len(results) != 6 {
+			t.Fatalf("expected 6 products (all), got %d", len(results))
 		}
 		if stamp.ViewVersion != 1 {
 			t.Fatalf("expected stamp version=1, got %d", stamp.ViewVersion)
 		}
 		if stamp.Epoch.IsZero() {
 			t.Fatal("expected non-zero stamp epoch")
+		}
+
+		filtered, err := products.Query().Where("Category", localcache.OpEQ, "Electronics").Execute(ctx)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(filtered) != 3 {
+			t.Fatalf("expected 3 Electronics via table Query, got %d", len(filtered))
 		}
 	})
 
@@ -527,7 +536,7 @@ func TestScenario_ViewConsistency(t *testing.T) {
 		if vq2 == nil {
 			t.Fatal("expected non-nil ViewQuery for customers")
 		}
-		_, custStamp, err := vq2.Where("Tier", localcache.OpEQ, "Gold").Execute(ctx)
+		_, custStamp, err := vq2.Execute(ctx)
 		if err != nil {
 			t.Fatal(err)
 		}

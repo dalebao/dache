@@ -93,8 +93,8 @@ func (q *Query[K, V]) Execute(ctx context.Context) ([]V, error) {
 	q.cache.mu.RLock()
 	defer q.cache.mu.RUnlock()
 
-	candidates := q.collectCandidates()
-	candidates = q.applyFilters(candidates)
+	candidates, indexField := q.collectCandidates()
+	candidates = q.applyFilters(candidates, indexField)
 	q.applySort(candidates)
 
 	if q.offset > 0 && q.offset < len(candidates) {
@@ -114,7 +114,7 @@ func (q *Query[K, V]) Execute(ctx context.Context) ([]V, error) {
 	return result, nil
 }
 
-func (q *Query[K, V]) collectCandidates() []*V {
+func (q *Query[K, V]) collectCandidates() ([]*V, string) {
 	var bestField string
 	var bestCount int
 
@@ -134,22 +134,22 @@ func (q *Query[K, V]) collectCandidates() []*V {
 	}
 
 	if bestField == "" {
-		return q.allRecords()
+		return q.allRecords(), ""
 	}
 
 	for _, w := range q.wheres {
 		if w.field == bestField {
 			raw := q.cache.indices[bestField].lookup(w.value)
 			if len(raw) == 0 {
-				return nil
+				return nil, bestField
 			}
 			cp := make([]*V, len(raw))
 			copy(cp, raw)
-			return cp
+			return cp, bestField
 		}
 	}
 
-	return q.allRecords()
+	return q.allRecords(), ""
 }
 
 func (q *Query[K, V]) allRecords() []*V {
@@ -160,25 +160,16 @@ func (q *Query[K, V]) allRecords() []*V {
 	return result
 }
 
-func (q *Query[K, V]) applyFilters(candidates []*V) []*V {
+func (q *Query[K, V]) applyFilters(candidates []*V, skipField string) []*V {
 	if len(q.wheres) == 0 {
 		return candidates
-	}
-
-	indexedUsed := make(map[string]bool)
-	for _, w := range q.wheres {
-		if w.op == OpEQ && w.value != nil {
-			if _, ok := q.cache.indices[w.field]; ok {
-				indexedUsed[w.field] = true
-			}
-		}
 	}
 
 	filtered := make([]*V, 0, len(candidates))
 	for _, v := range candidates {
 		match := true
 		for _, w := range q.wheres {
-			if indexedUsed[w.field] && w.op == OpEQ && w.value != nil {
+			if w.field == skipField && w.op == OpEQ && w.value != nil {
 				continue
 			}
 			if !q.matches(w, *v) {

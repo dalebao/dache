@@ -71,18 +71,16 @@ func (c *Cache[K, V]) Load(ctx context.Context, items []V) error {
 		newItems[c.keyFn(*v)] = v
 	}
 
-	newIndices := make(map[string]indexer[V])
+	c.mu.Lock()
+	newIndices := make(map[string]indexer[V], len(c.indices))
 	for name, idx := range c.indices {
 		newIndices[name] = idx.clone()
 	}
-
 	for _, v := range newItems {
 		for _, idx := range newIndices {
 			idx.add(v)
 		}
 	}
-
-	c.mu.Lock()
 	c.items = newItems
 	c.indices = newIndices
 	c.mu.Unlock()
